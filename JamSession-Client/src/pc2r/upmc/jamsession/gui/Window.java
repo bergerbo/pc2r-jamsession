@@ -4,10 +4,13 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.util.concurrent.ExecutionException;
 
+import javax.swing.Box;
 import javax.swing.JButton;
 import javax.swing.JFrame;
+import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JTextField;
 
 import pc2r.upmc.jamsession.network.Client;
 import pc2r.upmc.jamsession.network.SessionInfo;
@@ -20,7 +23,7 @@ public class Window extends JPanel {
 	private Client client;
 	private JFrame frame;
 
-	public Window(final Client client,final JFrame frame ) {
+	public Window(final Client client, final JFrame frame) {
 		this.client = client;
 		this.frame = frame;
 		JPanel topButtons = new JPanel();
@@ -44,21 +47,30 @@ public class Window extends JPanel {
 
 					button.setText("Syncing");
 					updateUI();
-					
+
 					SessionSyncWorker sync = new SessionSyncWorker(client);
 					sync.execute();
 					SessionInfo info = sync.get();
 					if (info == null) {
-						// prompt for infos
+						info = sessionInfoDialog();
+						SessionOptionWorker opt = new SessionOptionWorker(
+								client, info);
+						opt.execute();
+
+						if (!opt.get()) {
+							reset();
+							return;
+						}
+
 					} else if (info.full) {
-						JOptionPane.showMessageDialog(frame, "Session is full.");
+						JOptionPane
+								.showMessageDialog(frame, "Session is full.");
 						reset();
 						return;
-					} else {
-						AudioConnectionWorker ac = new AudioConnectionWorker(client);
-						ac.execute();
-						ac.get();
 					}
+					AudioConnectionWorker ac = new AudioConnectionWorker(client);
+					ac.execute();
+					ac.get();
 
 				} catch (InterruptedException | ExecutionException e) {
 					reset();
@@ -75,6 +87,31 @@ public class Window extends JPanel {
 		client.close();
 		button.setText("Connect");
 		button.setEnabled(true);
+	}
+
+	public SessionInfo sessionInfoDialog() {
+		JTextField styleField = new JTextField(20);
+		JTextField tempoField = new JTextField(5);
+
+		JPanel sessionPanel = new JPanel();
+		sessionPanel.add(new JLabel("Style :"));
+		sessionPanel.add(styleField);
+		sessionPanel.add(Box.createVerticalStrut(15)); // a spacer
+		sessionPanel.add(new JLabel("Tempo :"));
+		sessionPanel.add(tempoField);
+
+		int result = JOptionPane.showConfirmDialog(null, sessionPanel,
+				"New Session !", JOptionPane.OK_CANCEL_OPTION);
+		if (result == JOptionPane.OK_OPTION) {
+			SessionInfo info = new SessionInfo();
+			info.full = false;
+			info.nb_mus = 1;
+			info.style = styleField.getText();
+			info.tempo = Integer.parseInt(tempoField.getText());
+			return info;
+		}
+
+		return null;
 	}
 
 }

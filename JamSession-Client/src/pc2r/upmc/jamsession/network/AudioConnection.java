@@ -27,11 +27,14 @@ public class AudioConnection {
 	private PrintWriter out;
 	private BufferedReader in;
 
-	public AudioConnection(SoundMixer mixer, int port) {
+	public AudioConnection(SoundMixer mixer, int port, SessionInfo info, int tick) {
 		this.mixer = mixer;
 		this.port = port;
-		tick = 0;
+		this.info = info;
+		this.tick = tick;
 	}
+
+	
 
 	public void setTick(int tick){
 		this.tick = tick;

@@ -21,6 +21,7 @@ public class Client {
 	private int port;
 	private String user;
 	private SessionInfo info;
+	private int tick;
 
 	public Client(SoundMixer mixer, int port, String user) {
 		this.mixer = mixer;
@@ -66,6 +67,13 @@ public class Client {
 		
 		if (cmd.equals(Command.CURRENT_SESSION)) {
 			info = new SessionInfo(msg.getArgs());
+			
+			msg = receive();
+			if(!msg.getCmd().equals(Command.AUDIO_SYNC))
+				throw new UnexpectedMessageException(msg.getCmd());
+			
+			tick = Integer.parseInt(msg.getArgs().get(0));
+			
 			return info;
 		} else if (cmd.equals(Command.EMPTY_SESSION)) {
 			return null;
@@ -74,8 +82,22 @@ public class Client {
 			return info;
 		} else {
 			throw new UnexpectedMessageException(cmd);
-		}
-			
+		}		
+	}
+	
+	public boolean sendSessionInfo(SessionInfo info) throws IOException, UnkownCommandException{
+		Message msg = new Message(Command.SET_OPTIONS);
+		msg.addArg(info.style);
+		msg.addArg(""+info.tempo);
+		send(msg);
+		
+		msg = receive();
+		if(!msg.getCmd().equals(Command.ACK_OPTS))
+			return false;
+		
+		tick = 0;
+		
+		return true;
 	}
 
 	public void  setupAudioConnection() throws IOException, UnkownCommandException, UnexpectedMessageException {
@@ -86,7 +108,7 @@ public class Client {
 			throw new UnexpectedMessageException(msg.getCmd());
 
 		int audioport = Integer.parseInt(msg.getArgs().get(0));
-		ac = new AudioConnection(mixer, audioport);
+		ac = new AudioConnection(mixer, audioport, info, tick);
 
 		if (!ac.connect())
 			throw new UnexpectedMessageException(msg.getCmd());
@@ -122,7 +144,6 @@ public class Client {
 				in.close();
 				s = null;
 			} catch (IOException e) {
-				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
 		}
