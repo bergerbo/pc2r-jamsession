@@ -81,9 +81,16 @@ public class Client {
 	}
 
 	public boolean waitForSyncInfo() {
-		Message msg;
-		
-		msg = receive();
+		try {
+			Message msg;
+			msg = receive();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (UnkownCommandException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 		
 		return false;
 	}
