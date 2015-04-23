@@ -22,6 +22,7 @@ public class AudioConnection {
 
 	private Socket s;
 	private int port;
+	private SessionInfo info;
 	private int tick;
 	private PrintWriter out;
 	private BufferedReader in;

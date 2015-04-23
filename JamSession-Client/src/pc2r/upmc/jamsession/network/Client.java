@@ -20,6 +20,7 @@ public class Client {
 
 	private int port;
 	private String user;
+	private SessionInfo info;
 
 	public Client(SoundMixer mixer, int port, String user) {
 		this.mixer = mixer;
@@ -39,31 +40,9 @@ public class Client {
 			out.println(MessageBuilder.build(msg));
 			out.flush();
 
-
 			msg = receive();
 			if (!msg.getCmd().equals(Command.WELCOME))
 				return false;
-
-			// Get audio port
-			msg = receive();
-			if (!msg.getCmd().equals(Command.AUDIO_PORT))
-				return false;
-
-			int audioport = Integer.parseInt(msg.getArgs().get(0));
-			ac = new AudioConnection(mixer, audioport);
-
-			if (!ac.connect())
-				return false;
-
-			msg = receive();
-			if (!msg.getCmd().equals(Command.AUDIO_OK))
-				return false;
-
-			// Start recording and playing in Mixer
-			// Start reception and sending in AudioConnection
-			mixer.setAudioConnection(ac);
-			mixer.start();
-			ac.start();
 
 			return true;
 		} catch (UnknownHostException e) {
@@ -80,19 +59,47 @@ public class Client {
 		return false;
 	}
 
-	public boolean waitForSyncInfo() {
-		try {
-			Message msg;
-			msg = receive();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} catch (UnkownCommandException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
+	public SessionInfo waitForSyncInfo() throws IOException, UnkownCommandException, UnexpectedMessageException {
+		Message msg;
+		msg = receive();
+		String cmd = msg.getCmd();
 		
-		return false;
+		if (cmd.equals(Command.CURRENT_SESSION)) {
+			info = new SessionInfo(msg.getArgs());
+			return info;
+		} else if (cmd.equals(Command.EMPTY_SESSION)) {
+			return null;
+		} else if (cmd.equals(Command.FULL_SESSION)) {
+			info = new SessionInfo();
+			return info;
+		} else {
+			throw new UnexpectedMessageException(cmd);
+		}
+			
+	}
+
+	public void  setupAudioConnection() throws IOException, UnkownCommandException, UnexpectedMessageException {
+		// Get audio port
+		Message msg;
+		msg = receive();
+		if (!msg.getCmd().equals(Command.AUDIO_PORT))
+			throw new UnexpectedMessageException(msg.getCmd());
+
+		int audioport = Integer.parseInt(msg.getArgs().get(0));
+		ac = new AudioConnection(mixer, audioport);
+
+		if (!ac.connect())
+			throw new UnexpectedMessageException(msg.getCmd());
+
+		msg = receive();
+		if (!msg.getCmd().equals(Command.AUDIO_OK))
+			throw new UnexpectedMessageException(msg.getCmd());
+
+		// Start recording and playing in Mixer
+		// Start reception and sending in AudioConnection
+		mixer.setAudioConnection(ac);
+		mixer.start();
+		ac.start();
 	}
 
 	public void send(Message msg) {
@@ -105,6 +112,7 @@ public class Client {
 		resp = in.readLine();
 		return MessageBuilder.parse(resp);
 	}
+	
 
 	public void close() {
 		if (s != null) {
