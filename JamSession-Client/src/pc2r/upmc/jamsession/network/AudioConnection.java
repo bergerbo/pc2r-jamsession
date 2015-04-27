@@ -27,8 +27,10 @@ public class AudioConnection {
 	private PrintWriter out;
 	private BufferedReader in;
 	private int bufferSize;
+	private Client client;
 
-	public AudioConnection(SoundMixer mixer, int port, SessionInfo info, int tick) {
+	public AudioConnection(Client client, SoundMixer mixer, int port, SessionInfo info, int tick) {
+		this.client = client;
 		this.mixer = mixer;
 		this.port = port;
 		this.info = info;
@@ -85,15 +87,24 @@ public class AudioConnection {
 		
 		@Override
 		public void run() {
+			boolean sent;
 			while (running) {
+				sent = false;
 				try {
-					bytes = chunks.take();
-					msg = new Message(Command.AUDIO_CHUNK);
-					msg.addArg(""+tick);
-					msg.addArg(new String(bytes));
-					out.println(MessageBuilder.build(msg));
-					out.flush();
+					while(!sent){
+						bytes = chunks.take();
+						msg = new Message(Command.AUDIO_CHUNK);
+						msg.addArg(""+tick);
+						msg.addArg(new String(bytes));
+						out.println(MessageBuilder.build(msg));
+						out.flush();
+						msg = client.waitFor(Command.AUDIO_KO, Command.AUDIO_OK);
+						if(msg.getCmd().equals(Command.AUDIO_OK))
+							sent = true;
+					}
+
 					tick++;
+					
 				} catch (InterruptedException e) {
 					// TODO Auto-generated catch block
 					e.printStackTrace();

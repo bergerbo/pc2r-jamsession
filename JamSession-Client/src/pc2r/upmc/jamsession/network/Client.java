@@ -6,10 +6,15 @@ import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.concurrent.ArrayBlockingQueue;
 
 import pc2r.upmc.jamsession.sound.SoundMixer;
 
 public class Client {
+
+	private ArrayBlockingQueue<Message> inQueue;
 
 	private Socket s;
 	private PrintWriter out;
@@ -17,31 +22,39 @@ public class Client {
 
 	private SoundMixer mixer;
 	private AudioConnection ac;
+	private Thread receiver;
+	private Thread sessionManager;
+	boolean running;
 
 	private int port;
 	private String user;
 	private SessionInfo info;
 	private int tick;
 
-	public Client( int port, String user) {
+	public Client(int port, String user) {
 		this.port = port;
 		this.user = user;
+		inQueue = new ArrayBlockingQueue<>(10);
 	}
 
-	public boolean connect() {
+	public boolean connect() throws InterruptedException {
 		try {
 			s = new Socket("localhost", port);
 			out = new PrintWriter(s.getOutputStream());
 			in = new BufferedReader(new InputStreamReader(s.getInputStream()));
+			running = true;
+			
+			receiver = new Thread(new MessageReceiver());
+			sessionManager = new Thread(new SessionManager());
+			receiver.start();
+			sessionManager.start();
 
 			// Handshake
 			Message msg = new Message(Command.CONNECT);
 			msg.addArg(user);
 			send(msg);
 
-			msg = receive();
-			if (!msg.getCmd().equals(Command.WELCOME))
-				return false;
+			msg = waitFor(Command.WELCOME);
 
 			return true;
 		} catch (UnknownHostException e) {
@@ -51,27 +64,24 @@ public class Client {
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
-		} catch (UnkownCommandException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
 		}
 		return false;
 	}
 
-	public SessionInfo waitForSyncInfo() throws IOException, UnkownCommandException, UnexpectedMessageException {
+	public SessionInfo waitForSyncInfo() throws InterruptedException,
+			UnexpectedMessageException {
 		Message msg;
-		msg = receive();
+		msg = waitFor(Command.CURRENT_SESSION, Command.EMPTY_SESSION,
+				Command.FULL_SESSION);
 		String cmd = msg.getCmd();
-		
+
 		if (cmd.equals(Command.CURRENT_SESSION)) {
 			info = new SessionInfo(msg.getArgs());
-			
-			msg = receive();
-			if(!msg.getCmd().equals(Command.AUDIO_SYNC))
-				throw new UnexpectedMessageException(msg.getCmd());
-			
+
+			msg = waitFor(Command.AUDIO_SYNC);
+
 			tick = Integer.parseInt(msg.getArgs().get(0));
-			
+
 			return info;
 		} else if (cmd.equals(Command.EMPTY_SESSION)) {
 			return null;
@@ -80,40 +90,40 @@ public class Client {
 			return info;
 		} else {
 			throw new UnexpectedMessageException(cmd);
-		}		
+		}
 	}
-	
-	public boolean sendSessionInfo(SessionInfo info) throws IOException, UnkownCommandException{
+
+	public boolean sendSessionInfo(SessionInfo info)
+			throws InterruptedException {
 		Message msg = new Message(Command.SET_OPTIONS);
 		msg.addArg(info.style);
-		msg.addArg(""+info.tempo);
+		msg.addArg("" + info.tempo);
 		send(msg);
-		
+
 		msg = receive();
-		if(!msg.getCmd().equals(Command.ACK_OPTS))
+		if (!msg.getCmd().equals(Command.ACK_OPTS))
 			return false;
-		
+
 		tick = 0;
-		
+
 		return true;
 	}
 
-	public void  setupAudioConnection() throws IOException, UnkownCommandException, UnexpectedMessageException {
+	public void setupAudioConnection() throws InterruptedException {
 		// Get audio port
 		Message msg;
-		msg = receive();
-		if (!msg.getCmd().equals(Command.AUDIO_PORT))
-			throw new UnexpectedMessageException(msg.getCmd());
+		msg = waitFor(Command.AUDIO_PORT);
 
 		int audioport = Integer.parseInt(msg.getArgs().get(0));
-		ac = new AudioConnection(mixer, audioport, info, tick);
-		mixer = new SoundMixer(info.tempo);
-		if (!ac.connect())
-			throw new UnexpectedMessageException(msg.getCmd());
 
-		msg = receive();
-		if (!msg.getCmd().equals(Command.AUDIO_OK))
-			throw new UnexpectedMessageException(msg.getCmd());
+		ac = new AudioConnection(this, mixer, audioport, info, tick);
+		mixer = new SoundMixer(info.tempo);
+
+		if (!ac.connect()) {
+			close();
+		}
+
+		msg = waitFor(Command.AUDIO_OK);
 
 		// Start recording and playing in Mixer
 		// Start reception and sending in AudioConnection
@@ -127,12 +137,38 @@ public class Client {
 		out.flush();
 	}
 
-	public Message receive() throws IOException, UnkownCommandException {
-		String resp;
-		resp = in.readLine();
-		return MessageBuilder.parse(resp);
+	public Message receive() throws InterruptedException {
+		return inQueue.take();
 	}
-	
+
+	public Message waitFor(String... cmds) throws InterruptedException {
+		ArrayList<String> commands = new ArrayList<String>(Arrays.asList(cmds));
+		while (true) {
+			synchronized (inQueue) {
+				Message head = inQueue.peek();
+				if (head != null && commands.contains(head.getCmd())) {
+					inQueue.poll();
+					inQueue.notifyAll();
+					return head;
+				} else
+					inQueue.wait();
+			}
+		}
+	}
+
+	public Message waitFor(String command) throws InterruptedException {
+		while (true) {
+			synchronized (inQueue) {
+				Message head = inQueue.peek();
+				if (head != null && head.getCmd().equals(command)) {
+					inQueue.poll();
+					inQueue.notifyAll();
+					return head;
+				} else
+					inQueue.wait();
+			}
+		}
+	}
 
 	public void close() {
 		if (s != null) {
@@ -140,6 +176,7 @@ public class Client {
 				s.close();
 				out.close();
 				in.close();
+				running = false;
 				s = null;
 			} catch (IOException e) {
 				e.printStackTrace();
@@ -150,6 +187,56 @@ public class Client {
 			mixer.stop();
 			ac = null;
 		}
+	}
+
+	private class MessageReceiver implements Runnable {
+		
+		@Override
+		public void run() {
+
+			try {
+				while (running) {
+					String resp;
+					resp = in.readLine();
+					synchronized (inQueue) {
+
+						try {
+							inQueue.put(MessageBuilder.parse(resp));
+						} catch (UnkownCommandException e) {
+							e.printStackTrace();
+						}
+						inQueue.notifyAll();
+					}
+				}
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			} catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
+	}
+	
+	private class SessionManager implements Runnable {
+		private Message msg;
+		@Override
+		public void run() {
+			while (running) {
+				try {
+					msg = waitFor(Command.CONNECTED, Command.EXITED);
+					if(msg.getCmd().equals(Command.CONNECTED))
+						info.nb_mus++;
+					else
+						info.nb_mus--;
+				} catch (InterruptedException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+			}
+			
+		}
+		
 	}
 
 }
