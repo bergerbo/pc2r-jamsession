@@ -6,8 +6,8 @@ import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
 import java.net.UnknownHostException;
-import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 
 import pc2r.upmc.jamsession.sound.SoundMixer;
@@ -27,14 +27,21 @@ public class Client {
 	boolean running;
 
 	private int port;
+	private int audioPort;
 	private String user;
 	private SessionInfo info;
+	
 	private int tick;
 
 	public Client(int port, String user) {
 		this.port = port;
 		this.user = user;
+		info = new SessionInfo();
 		inQueue = new ArrayBlockingQueue<>(10);
+	}
+	
+	public SessionInfo getInfo() {
+		return info;
 	}
 
 	public boolean connect() throws InterruptedException {
@@ -43,7 +50,7 @@ public class Client {
 			out = new PrintWriter(s.getOutputStream());
 			in = new BufferedReader(new InputStreamReader(s.getInputStream()));
 			running = true;
-			
+
 			receiver = new Thread(new MessageReceiver());
 			sessionManager = new Thread(new SessionManager());
 			receiver.start();
@@ -71,12 +78,19 @@ public class Client {
 	public SessionInfo waitForSyncInfo() throws InterruptedException,
 			UnexpectedMessageException {
 		Message msg;
+
+		// Get audio port
+		msg = waitFor(Command.AUDIO_PORT);
+
+		audioPort = Integer.parseInt(msg.getArgs().get(0));
+
+		// Get session infos & tick sync if needed
 		msg = waitFor(Command.CURRENT_SESSION, Command.EMPTY_SESSION,
 				Command.FULL_SESSION);
 		String cmd = msg.getCmd();
 
 		if (cmd.equals(Command.CURRENT_SESSION)) {
-			info = new SessionInfo(msg.getArgs());
+			info.updateInfos(msg.getArgs());
 
 			msg = waitFor(Command.AUDIO_SYNC);
 
@@ -95,6 +109,7 @@ public class Client {
 
 	public boolean sendSessionInfo(SessionInfo info)
 			throws InterruptedException {
+		// Send user created session infos
 		Message msg = new Message(Command.SET_OPTIONS);
 		msg.addArg(info.style);
 		msg.addArg("" + info.tempo);
@@ -110,26 +125,22 @@ public class Client {
 	}
 
 	public void setupAudioConnection() throws InterruptedException {
-		// Get audio port
-		Message msg;
-		msg = waitFor(Command.AUDIO_PORT);
 
-		int audioport = Integer.parseInt(msg.getArgs().get(0));
-
-		ac = new AudioConnection(this, mixer, audioport, info, tick);
-		mixer = new SoundMixer(info.tempo);
+		ac = new AudioConnection(this, mixer, audioPort, info, tick);
+		mixer = new SoundMixer(info.tempo,ac);
 
 		if (!ac.connect()) {
 			close();
+			return;
 		}
 
-		msg = waitFor(Command.AUDIO_OK);
+		waitFor(Command.AUDIO_OK);
 
 		// Start recording and playing in Mixer
 		// Start reception and sending in AudioConnection
-		mixer.setAudioConnection(ac);
 		mixer.start();
 		ac.start();
+		
 	}
 
 	public void send(Message msg) {
@@ -142,7 +153,7 @@ public class Client {
 	}
 
 	public Message waitFor(String... cmds) throws InterruptedException {
-		ArrayList<String> commands = new ArrayList<String>(Arrays.asList(cmds));
+		List<String> commands = Arrays.asList(cmds);
 		while (true) {
 			synchronized (inQueue) {
 				Message head = inQueue.peek();
@@ -190,7 +201,7 @@ public class Client {
 	}
 
 	private class MessageReceiver implements Runnable {
-		
+
 		@Override
 		public void run() {
 
@@ -217,26 +228,32 @@ public class Client {
 			}
 		}
 	}
-	
+
 	private class SessionManager implements Runnable {
 		private Message msg;
+
 		@Override
 		public void run() {
 			while (running) {
 				try {
 					msg = waitFor(Command.CONNECTED, Command.EXITED);
-					if(msg.getCmd().equals(Command.CONNECTED))
-						info.nb_mus++;
-					else
-						info.nb_mus--;
+					synchronized (info) {
+						if (msg.getCmd().equals(Command.CONNECTED))
+							info.nb_mus++;
+						else
+							info.nb_mus--;
+						
+						info.notifyAll();
+					}
+					
 				} catch (InterruptedException e) {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
 			}
-			
+
 		}
-		
+
 	}
 
 }

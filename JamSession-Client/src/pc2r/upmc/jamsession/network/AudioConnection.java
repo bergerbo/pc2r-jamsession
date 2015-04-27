@@ -11,39 +11,36 @@ import pc2r.upmc.jamsession.sound.SoundMixer;
 
 public class AudioConnection {
 
-	private ArrayBlockingQueue<byte[]> chunks = new ArrayBlockingQueue<byte[]>(
-			10);
+	private ArrayBlockingQueue<byte[]> chunks;
 
 	private Thread reception;
 	private Thread sending;
 	private boolean running;
-	
+
 	private SoundMixer mixer;
 
 	private Socket s;
 	private int port;
-	private SessionInfo info;
 	private int tick;
 	private PrintWriter out;
 	private BufferedReader in;
 	private int bufferSize;
 	private Client client;
 
-	public AudioConnection(Client client, SoundMixer mixer, int port, SessionInfo info, int tick) {
+	public AudioConnection(Client client, SoundMixer mixer, int port,
+			SessionInfo info, int tick) {
+		chunks = new ArrayBlockingQueue<byte[]>(10);
 		this.client = client;
 		this.mixer = mixer;
 		this.port = port;
-		this.info = info;
 		this.tick = tick;
 		bufferSize = 44100 * 60 * 32 / info.tempo;
 	}
 
-	
-
-	public void setTick(int tick){
+	public void setTick(int tick) {
 		this.tick = tick;
 	}
-	
+
 	public boolean connect() {
 		try {
 			s = new Socket("localhost", port);
@@ -63,12 +60,12 @@ public class AudioConnection {
 		reception.start();
 		sending.start();
 	}
-	
-	public void stop(){
+
+	public void stop() {
 		running = false;
 	}
 
-	public void pushChunk(byte[] buf){
+	public void pushChunk(byte[] buf) {
 		try {
 			chunks.put(buf);
 		} catch (InterruptedException e) {
@@ -76,35 +73,36 @@ public class AudioConnection {
 			e.printStackTrace();
 		}
 	}
-	
+
 	private class ChunkSender implements Runnable {
 		private byte[] bytes;
 		private Message msg;
-		
-		public ChunkSender(int bufferSize){
+
+		public ChunkSender(int bufferSize) {
 			bytes = new byte[bufferSize];
 		}
-		
+
 		@Override
 		public void run() {
 			boolean sent;
 			while (running) {
 				sent = false;
 				try {
-					while(!sent){
+					while (!sent) {
 						bytes = chunks.take();
 						msg = new Message(Command.AUDIO_CHUNK);
-						msg.addArg(""+tick);
+						msg.addArg("" + tick);
 						msg.addArg(new String(bytes));
 						out.println(MessageBuilder.build(msg));
 						out.flush();
-						msg = client.waitFor(Command.AUDIO_KO, Command.AUDIO_OK);
-						if(msg.getCmd().equals(Command.AUDIO_OK))
+						msg = client
+								.waitFor(Command.AUDIO_KO, Command.AUDIO_OK);
+						if (msg.getCmd().equals(Command.AUDIO_OK))
 							sent = true;
 					}
 
 					tick++;
-					
+
 				} catch (InterruptedException e) {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
@@ -117,13 +115,12 @@ public class AudioConnection {
 		private char[] buf;
 		private int bufferSize;
 		private Message msg;
-		
-		public MixReceiver(int bufferSize){
+
+		public MixReceiver(int bufferSize) {
 			this.bufferSize = bufferSize + "AUDIO_MIX//".length();
 			buf = new char[bufferSize];
 		}
-		
-		
+
 		@Override
 		public void run() {
 
@@ -131,7 +128,7 @@ public class AudioConnection {
 				while (running) {
 					in.read(buf, 0, bufferSize);
 					msg = MessageBuilder.parse(new String(buf));
-					if(msg.getCmd() == Command.AUDIO_MIX){
+					if (msg.getCmd() == Command.AUDIO_MIX) {
 						mixer.pushIncomming(msg.getArgs().get(0).getBytes());
 					}
 				}

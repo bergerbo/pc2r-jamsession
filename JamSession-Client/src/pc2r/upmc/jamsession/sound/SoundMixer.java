@@ -26,7 +26,7 @@ public class SoundMixer {
 	private Thread audioPlayer;
 	private boolean running;
 
-	public SoundMixer(int tempo) {
+	public SoundMixer(int tempo, AudioConnection ac) {
 		float sampleRate = 44100;
 		int sampleSizeInBits = 32;
 		int channels = 1;
