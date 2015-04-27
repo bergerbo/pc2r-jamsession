@@ -116,20 +116,26 @@ public class SoundMixer {
 		@Override
 		public void run() {
 			while (running) {
-				try {
-					buffer = incomingMix.take();
-					repeat = repeater.poll();
-					
-					for(int i = 0; i< buffer.length; i++){
-						buffer[i] = (byte) ((buffer[i] + repeat[i])/2);
+				//try {
+					//buffer = incomingMix.take();
+					try {
+						repeat = repeater.take();
+						out.write(repeat, 0, repeat.length);
+						out.flush();
+					} catch (InterruptedException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
 					}
 					
-					out.write(buffer, 0, buffer.length);
-					out.flush();
-				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
+//					for(int i = 0; i< buffer.length; i++){
+//						buffer[i] = (byte) ((buffer[i] + repeat[i])/2);
+//					}
+					
+
+//				} catch (InterruptedException e) {
+//					// TODO Auto-generated catch block
+//					e.printStackTrace();
+//				}
 			}
 			out.close();
 		}
