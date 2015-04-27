@@ -35,20 +35,18 @@ public class Window extends JPanel {
 			@Override
 			public void actionPerformed(ActionEvent arg0) {
 				try {
-					ConnectionWorker connection;
-					button.setEnabled(false);
 					button.setText("Connecting");
-					connection = new ConnectionWorker(client);
+					button.setEnabled(false);
+					
+					ConnectionWorker connection;
+					connection = new ConnectionWorker(client, button);
 					connection.execute();
 					if (!connection.get()) {
 						reset();
 						return;
 					}
 
-					button.setText("Syncing");
-					updateUI();
-
-					SessionSyncWorker sync = new SessionSyncWorker(client);
+					SessionSyncWorker sync = new SessionSyncWorker(client, button);
 					sync.execute();
 					SessionInfo info = sync.get();
 					if (info == null) {

@@ -23,8 +23,7 @@ public class Client {
 	private SessionInfo info;
 	private int tick;
 
-	public Client(SoundMixer mixer, int port, String user) {
-		this.mixer = mixer;
+	public Client( int port, String user) {
 		this.port = port;
 		this.user = user;
 	}
@@ -38,8 +37,7 @@ public class Client {
 			// Handshake
 			Message msg = new Message(Command.CONNECT);
 			msg.addArg(user);
-			out.println(MessageBuilder.build(msg));
-			out.flush();
+			send(msg);
 
 			msg = receive();
 			if (!msg.getCmd().equals(Command.WELCOME))
@@ -109,7 +107,7 @@ public class Client {
 
 		int audioport = Integer.parseInt(msg.getArgs().get(0));
 		ac = new AudioConnection(mixer, audioport, info, tick);
-
+		mixer = new SoundMixer(info.tempo);
 		if (!ac.connect())
 			throw new UnexpectedMessageException(msg.getCmd());
 

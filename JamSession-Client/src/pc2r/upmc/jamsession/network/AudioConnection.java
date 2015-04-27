@@ -26,12 +26,14 @@ public class AudioConnection {
 	private int tick;
 	private PrintWriter out;
 	private BufferedReader in;
+	private int bufferSize;
 
 	public AudioConnection(SoundMixer mixer, int port, SessionInfo info, int tick) {
 		this.mixer = mixer;
 		this.port = port;
 		this.info = info;
 		this.tick = tick;
+		bufferSize = 44100 * 60 * 32 / info.tempo;
 	}
 
 	
@@ -54,8 +56,8 @@ public class AudioConnection {
 
 	public void start() {
 		running = true;
-		reception = new Thread(new MixReceiver());
-		sending = new Thread(new ChunkSender());
+		reception = new Thread(new MixReceiver(bufferSize));
+		sending = new Thread(new ChunkSender(bufferSize));
 		reception.start();
 		sending.start();
 	}
@@ -74,8 +76,12 @@ public class AudioConnection {
 	}
 	
 	private class ChunkSender implements Runnable {
-		private byte[] bytes = new byte[44100];
+		private byte[] bytes;
 		private Message msg;
+		
+		public ChunkSender(int bufferSize){
+			bytes = new byte[bufferSize];
+		}
 		
 		@Override
 		public void run() {
@@ -97,15 +103,23 @@ public class AudioConnection {
 	}
 
 	private class MixReceiver implements Runnable {
-		private String read;
+		private char[] buf;
+		private int bufferSize;
 		private Message msg;
+		
+		public MixReceiver(int bufferSize){
+			this.bufferSize = bufferSize + "AUDIO_MIX//".length();
+			buf = new char[bufferSize];
+		}
+		
+		
 		@Override
 		public void run() {
 
 			try {
 				while (running) {
-					read = in.readLine();
-					msg = MessageBuilder.parse(read);
+					in.read(buf, 0, bufferSize);
+					msg = MessageBuilder.parse(new String(buf));
 					if(msg.getCmd() == Command.AUDIO_MIX){
 						mixer.pushIncomming(msg.getArgs().get(0).getBytes());
 					}

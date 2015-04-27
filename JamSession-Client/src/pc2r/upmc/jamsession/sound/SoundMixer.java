@@ -20,12 +20,13 @@ public class SoundMixer {
 	private SourceDataLine out;
 	private TargetDataLine in;
 	private AudioFormat format;
-
+	private int tempo;
+	
 	private Thread audioRecorder;
 	private Thread audioPlayer;
 	private boolean running;
 
-	public SoundMixer() {
+	public SoundMixer(int tempo) {
 		float sampleRate = 44100;
 		int sampleSizeInBits = 32;
 		int channels = 1;
@@ -43,7 +44,6 @@ public class SoundMixer {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-
 	}
 
 	public void setAudioConnection(AudioConnection ac) {
@@ -63,7 +63,7 @@ public class SoundMixer {
 
 		try {
 			running = true;
-			audioRecorder = new Thread(new AudioRecorder());
+			audioRecorder = new Thread(new AudioRecorder(tempo));
 			audioPlayer = new Thread(new AudioPlayer());
 			in.open(format);
 			out.open(format);
@@ -81,8 +81,13 @@ public class SoundMixer {
 	}
 
 	private class AudioRecorder implements Runnable {
-		byte buffer[] = new byte[44100];
+		byte buffer[];
 
+		public AudioRecorder(int tempo){
+			int samples = 44100 * 60 / tempo;
+			buffer = new byte[samples * 32];
+		}
+		
 		@Override
 		public void run() {
 			while (running) {
