@@ -1,5 +1,6 @@
 package pc2r.upmc.jamsession.sound;
 
+import java.util.Arrays;
 import java.util.concurrent.ArrayBlockingQueue;
 
 import javax.sound.sampled.AudioFormat;
@@ -16,16 +17,19 @@ public class SoundMixer {
 	private ArrayBlockingQueue<byte[]> incomingMix = new ArrayBlockingQueue<>(
 			10);
 	
-	private ArrayBlockingQueue<byte[]> repeater = new ArrayBlockingQueue<>(10);
+	private ArrayBlockingQueue<byte[]> playbackQueue = new ArrayBlockingQueue<>(
+			100);
 
 	private AudioConnection ac;
-	private SourceDataLine out;
+	private SourceDataLine mixedout;
+	private SourceDataLine playback;
 	private TargetDataLine in;
 	private AudioFormat format;
 	private int tempo;
-	
+
 	private Thread audioRecorder;
 	private Thread audioPlayer;
+	private Thread audioPlayback;
 	private boolean running;
 
 	public SoundMixer(AudioConnection ac) {
@@ -41,11 +45,12 @@ public class SoundMixer {
 		try {
 			DataLine.Info info = new DataLine.Info(TargetDataLine.class, format);
 			if (!AudioSystem.isLineSupported(info)) {
-			    System.err.println("Unsupported Line");
+				System.err.println("Unsupported Line");
 			}
 			in = (TargetDataLine) AudioSystem.getLine(info);
 			info = new DataLine.Info(SourceDataLine.class, format);
-			out = (SourceDataLine) AudioSystem.getLine(info);
+			mixedout = (SourceDataLine) AudioSystem.getLine(info);
+			playback = (SourceDataLine) AudioSystem.getLine(info);
 		} catch (LineUnavailableException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -66,13 +71,17 @@ public class SoundMixer {
 		try {
 			this.tempo = tempo;
 			running = true;
-			audioRecorder = new Thread(new AudioRecorder(tempo));
-			audioPlayer = new Thread(new AudioPlayer());
+			audioRecorder = new Thread(new Record(tempo));
+			audioPlayback = new Thread(new Playback());
+			audioPlayer = new Thread(new MixPlayer());
 			in.open(format);
 			in.start();
-			out.open(format);
-			out.start();
+			mixedout.open(format);
+			mixedout.start();
+			playback.open(format);
+			playback.start();
 			audioRecorder.start();
+			audioPlayback.start();
 			audioPlayer.start();
 		} catch (LineUnavailableException e) {
 			// TODO Auto-generated catch block
@@ -85,24 +94,48 @@ public class SoundMixer {
 		running = false;
 	}
 
-	private class AudioRecorder implements Runnable {
+	
+	private class Playback implements Runnable {
 		byte buffer[];
 
-		public AudioRecorder(int tempo){
-			int samples = 44100 * 60 / tempo;
-			buffer = new byte[samples * 4];
-		}
 		@Override
 		public void run() {
 			while (running) {
-				int count = in.read(buffer, 0, buffer.length);
+				try {
+					buffer = playbackQueue.take();
+					playback.write(buffer, 0, buffer.length);
+				} catch (InterruptedException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}	
+			}
+			playback.close();
+		}
+	}
+	
+	private class Record implements Runnable {
+		byte buffer[];
+		int timeSize;
+
+		public Record(int tempo) {
+			timeSize = 44100 * 60 * 4 / tempo;
+			buffer = new byte[timeSize];
+		}
+
+		@Override
+		public void run() {
+			int offset = 0;
+			while (running) {
+				int count = in.read(buffer, offset, timeSize/100);
 				if (count > 0) {
-					ac.pushChunk(buffer);
-					try {
-						repeater.put(buffer);
-					} catch (InterruptedException e) {
-						// TODO Auto-generated catch block
-						e.printStackTrace();
+					
+					playbackQueue.offer(Arrays.copyOfRange(buffer, offset, offset+count));
+					
+					offset+=count;
+					
+					if(offset == timeSize){
+						ac.pushChunk(buffer);
+						offset = 0;
 					}
 				}
 			}
@@ -110,34 +143,22 @@ public class SoundMixer {
 		}
 	}
 
-	private class AudioPlayer implements Runnable {
+	private class MixPlayer implements Runnable {
 		byte[] buffer;
-		byte[] repeat;
+
 		@Override
 		public void run() {
 			while (running) {
-				//try {
-					//buffer = incomingMix.take();
-					try {
-						repeat = repeater.take();
-						out.write(repeat, 0, repeat.length);
-						out.flush();
-					} catch (InterruptedException e) {
-						// TODO Auto-generated catch block
-						e.printStackTrace();
-					}
-					
-//					for(int i = 0; i< buffer.length; i++){
-//						buffer[i] = (byte) ((buffer[i] + repeat[i])/2);
-//					}
-					
+				try {
+					buffer = incomingMix.take();
+					mixedout.write(buffer, 0, buffer.length);
 
-//				} catch (InterruptedException e) {
-//					// TODO Auto-generated catch block
-//					e.printStackTrace();
-//				}
+				} catch (InterruptedException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
 			}
-			out.close();
+			mixedout.close();
 		}
 	}
 

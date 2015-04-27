@@ -4,7 +4,6 @@ import javax.swing.JFrame;
 
 import pc2r.upmc.jamsession.gui.Window;
 import pc2r.upmc.jamsession.network.Client;
-import pc2r.upmc.jamsession.sound.SoundMixer;
 
 public class JamSession {
 

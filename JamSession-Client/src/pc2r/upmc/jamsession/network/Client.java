@@ -105,7 +105,7 @@ public class Client {
 	public boolean sendSessionInfo(SessionInfo info)
 			throws InterruptedException {
 		// Send user created session infos
-		this.info = info;
+		this.info.updateInfos(info);
 		Message msg = new Message(Command.SET_OPTIONS);
 		msg.addArg(info.style);
 		msg.addArg("" + info.tempo);

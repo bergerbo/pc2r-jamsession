@@ -21,11 +21,22 @@ public class SessionInfo {
 
 	}
 	
+	public void updateInfos(SessionInfo s){
+		synchronized (this) {
+			style = s.style;
+			tempo = s.tempo;
+			nb_mus = s.nb_mus;
+			full = false;
+			notifyAll();
+		}
+	}
+	
 	public SessionInfo(){
 		full = true;
 		tempo = 0;
 		nb_mus = 0;
 		style = "Unknown";
 	}
+	
 	
 }

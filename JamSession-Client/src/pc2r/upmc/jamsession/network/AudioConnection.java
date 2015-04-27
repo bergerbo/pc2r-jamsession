@@ -57,7 +57,7 @@ public class AudioConnection {
 		running = true;
 		reception = new Thread(new MixReceiver(bufferSize));
 		sending = new Thread(new ChunkSender(bufferSize));
-		reception.start();
+		//reception.start();
 		sending.start();
 	}
 
@@ -100,7 +100,6 @@ public class AudioConnection {
 						if (msg.getCmd().equals(Command.AUDIO_OK))
 							sent = true;
 					}
-
 					tick++;
 
 				} catch (InterruptedException e) {
