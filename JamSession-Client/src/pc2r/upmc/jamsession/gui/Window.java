@@ -41,14 +41,22 @@ public class Window extends JPanel {
 					ConnectionWorker connection;
 					connection = new ConnectionWorker(client, button);
 					connection.execute();
+                    System.out.println("connection");
 					if (!connection.get()) {
 						reset();
 						return;
 					}
 
+                    System.out.println("audio");
+					AudioConnectionWorker ac = new AudioConnectionWorker(client);
+					ac.execute();
+					ac.get();
+
+                    System.out.println("session");
 					SessionSyncWorker sync = new SessionSyncWorker(client, button);
 					sync.execute();
 					SessionInfo info = sync.get();
+                    System.out.println("session = " + info);
 					if (info == null) {
 						info = sessionInfoDialog();
 						SessionOptionWorker opt = new SessionOptionWorker(
@@ -66,10 +74,6 @@ public class Window extends JPanel {
 						reset();
 						return;
 					}
-					AudioConnectionWorker ac = new AudioConnectionWorker(client);
-					ac.execute();
-					ac.get();
-
 				} catch (InterruptedException | ExecutionException e) {
 					reset();
 				}

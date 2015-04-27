@@ -26,7 +26,7 @@ public class SoundMixer {
 	private Thread audioPlayer;
 	private boolean running;
 
-	public SoundMixer(int tempo) {
+	public SoundMixer() {
 		float sampleRate = 44100;
 		int sampleSizeInBits = 32;
 		int channels = 1;
@@ -59,7 +59,8 @@ public class SoundMixer {
 		}
 	}
 
-	public void start() {
+	public void start(int tempo) {
+        this.tempo = tempo;
 
 		try {
 			running = true;

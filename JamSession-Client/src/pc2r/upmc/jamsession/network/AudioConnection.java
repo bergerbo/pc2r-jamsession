@@ -28,12 +28,11 @@ public class AudioConnection {
 	private BufferedReader in;
 	private int bufferSize;
 
-	public AudioConnection(SoundMixer mixer, int port, SessionInfo info, int tick) {
+	public AudioConnection(SoundMixer mixer, int port, int tick) {
 		this.mixer = mixer;
 		this.port = port;
-		this.info = info;
 		this.tick = tick;
-		bufferSize = 44100 * 60 * 32 / info.tempo;
+        System.out.println(info);
 	}
 
 	
@@ -54,7 +53,9 @@ public class AudioConnection {
 		}
 	}
 
-	public void start() {
+	public void start(SessionInfo info) {
+		this.info = info;
+		bufferSize = 44100 * 60 * 32 / info.tempo;
 		running = true;
 		reception = new Thread(new MixReceiver(bufferSize));
 		sending = new Thread(new ChunkSender(bufferSize));

@@ -71,6 +71,12 @@ public class Client {
 				throw new UnexpectedMessageException(msg.getCmd());
 			
 			tick = Integer.parseInt(msg.getArgs().get(0));
+
+            // Start recording and playing in Mixer
+            // Start reception and sending in AudioConnection
+            mixer.setAudioConnection(ac);
+            mixer.start(info.tempo);
+            ac.start(info);
 			
 			return info;
 		} else if (cmd.equals(Command.EMPTY_SESSION)) {
@@ -94,6 +100,12 @@ public class Client {
 			return false;
 		
 		tick = 0;
+
+		// Start recording and playing in Mixer
+		// Start reception and sending in AudioConnection
+		mixer.setAudioConnection(ac);
+		mixer.start(info.tempo);
+		ac.start(info);
 		
 		return true;
 	}
@@ -106,20 +118,14 @@ public class Client {
 			throw new UnexpectedMessageException(msg.getCmd());
 
 		int audioport = Integer.parseInt(msg.getArgs().get(0));
-		ac = new AudioConnection(mixer, audioport, info, tick);
-		mixer = new SoundMixer(info.tempo);
+		mixer = new SoundMixer();
+		ac = new AudioConnection(mixer, audioport, tick);
 		if (!ac.connect())
 			throw new UnexpectedMessageException(msg.getCmd());
 
 		msg = receive();
 		if (!msg.getCmd().equals(Command.AUDIO_OK))
 			throw new UnexpectedMessageException(msg.getCmd());
-
-		// Start recording and playing in Mixer
-		// Start reception and sending in AudioConnection
-		mixer.setAudioConnection(ac);
-		mixer.start();
-		ac.start();
 	}
 
 	public void send(Message msg) {
