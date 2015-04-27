@@ -45,6 +45,10 @@ public class Window extends JPanel {
 						reset();
 						return;
 					}
+					
+					AudioConnectionWorker ac = new AudioConnectionWorker(client,button);
+					ac.execute();
+					ac.get();
 
 					SessionSyncWorker sync = new SessionSyncWorker(client, button);
 					sync.execute();
@@ -66,9 +70,6 @@ public class Window extends JPanel {
 						reset();
 						return;
 					}
-					AudioConnectionWorker ac = new AudioConnectionWorker(client);
-					ac.execute();
-					ac.get();
 
 				} catch (InterruptedException | ExecutionException e) {
 					reset();

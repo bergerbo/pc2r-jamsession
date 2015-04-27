@@ -34,7 +34,6 @@ public class AudioConnection {
 		this.mixer = mixer;
 		this.port = port;
 		this.tick = tick;
-		bufferSize = 44100 * 60 * 32 / info.tempo;
 	}
 
 	public void setTick(int tick) {
@@ -53,7 +52,8 @@ public class AudioConnection {
 		}
 	}
 
-	public void start() {
+	public void start(int tempo) {
+		bufferSize = 44100 * 60 * 4 / tempo;
 		running = true;
 		reception = new Thread(new MixReceiver(bufferSize));
 		sending = new Thread(new ChunkSender(bufferSize));
@@ -118,7 +118,7 @@ public class AudioConnection {
 
 		public MixReceiver(int bufferSize) {
 			this.bufferSize = bufferSize + "AUDIO_MIX//".length();
-			buf = new char[bufferSize];
+			buf = new char[this.bufferSize];
 		}
 
 		@Override

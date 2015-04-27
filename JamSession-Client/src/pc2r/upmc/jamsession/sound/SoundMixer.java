@@ -15,6 +15,8 @@ public class SoundMixer {
 
 	private ArrayBlockingQueue<byte[]> incomingMix = new ArrayBlockingQueue<>(
 			10);
+	
+	private ArrayBlockingQueue<byte[]> repeater = new ArrayBlockingQueue<>(10);
 
 	private AudioConnection ac;
 	private SourceDataLine out;
@@ -26,7 +28,8 @@ public class SoundMixer {
 	private Thread audioPlayer;
 	private boolean running;
 
-	public SoundMixer(int tempo, AudioConnection ac) {
+	public SoundMixer(AudioConnection ac) {
+
 		float sampleRate = 44100;
 		int sampleSizeInBits = 32;
 		int channels = 1;
@@ -37,6 +40,9 @@ public class SoundMixer {
 
 		try {
 			DataLine.Info info = new DataLine.Info(TargetDataLine.class, format);
+			if (!AudioSystem.isLineSupported(info)) {
+			    System.err.println("Unsupported Line");
+			}
 			in = (TargetDataLine) AudioSystem.getLine(info);
 			info = new DataLine.Info(SourceDataLine.class, format);
 			out = (SourceDataLine) AudioSystem.getLine(info);
@@ -59,9 +65,10 @@ public class SoundMixer {
 		}
 	}
 
-	public void start() {
+	public void start(int tempo) {
 
 		try {
+			this.tempo = tempo;
 			running = true;
 			audioRecorder = new Thread(new AudioRecorder(tempo));
 			audioPlayer = new Thread(new AudioPlayer());
@@ -85,15 +92,20 @@ public class SoundMixer {
 
 		public AudioRecorder(int tempo){
 			int samples = 44100 * 60 / tempo;
-			buffer = new byte[samples * 32];
+			buffer = new byte[samples * 4];
 		}
-		
 		@Override
 		public void run() {
 			while (running) {
 				int count = in.read(buffer, 0, buffer.length);
 				if (count > 0) {
 					ac.pushChunk(buffer);
+					try {
+						repeater.put(buffer);
+					} catch (InterruptedException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
 				}
 			}
 			in.close();
@@ -102,13 +114,20 @@ public class SoundMixer {
 
 	private class AudioPlayer implements Runnable {
 		byte[] buffer;
-
+		byte[] repeat;
 		@Override
 		public void run() {
 			while (running) {
 				try {
 					buffer = incomingMix.take();
+					repeat = repeater.poll();
+					
+					for(int i = 0; i< buffer.length; i++){
+						buffer[i] = (byte) ((buffer[i] + repeat[i])/2);
+					}
+					
 					out.write(buffer, 0, buffer.length);
+					out.flush();
 				} catch (InterruptedException e) {
 					// TODO Auto-generated catch block
 					e.printStackTrace();

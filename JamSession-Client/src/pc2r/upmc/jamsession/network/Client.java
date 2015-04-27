@@ -79,11 +79,6 @@ public class Client {
 			UnexpectedMessageException {
 		Message msg;
 
-		// Get audio port
-		msg = waitFor(Command.AUDIO_PORT);
-
-		audioPort = Integer.parseInt(msg.getArgs().get(0));
-
 		// Get session infos & tick sync if needed
 		msg = waitFor(Command.CURRENT_SESSION, Command.EMPTY_SESSION,
 				Command.FULL_SESSION);
@@ -94,8 +89,8 @@ public class Client {
 
 			msg = waitFor(Command.AUDIO_SYNC);
 
-			tick = Integer.parseInt(msg.getArgs().get(0));
-
+			ac.setTick(Integer.parseInt(msg.getArgs().get(0)));
+			start();
 			return info;
 		} else if (cmd.equals(Command.EMPTY_SESSION)) {
 			return null;
@@ -115,34 +110,39 @@ public class Client {
 		msg.addArg("" + info.tempo);
 		send(msg);
 
-		msg = receive();
-		if (!msg.getCmd().equals(Command.ACK_OPTS))
-			return false;
+		waitFor(Command.ACK_OPTS);
 
-		tick = 0;
-
+		start();
 		return true;
 	}
 
 	public void setupAudioConnection() throws InterruptedException {
+		Message msg;
+		
+		// Get audio port
+		msg = waitFor(Command.AUDIO_PORT);
+		audioPort = Integer.parseInt(msg.getArgs().get(0));
 
-		ac = new AudioConnection(this, mixer, audioPort, info, tick);
-		mixer = new SoundMixer(info.tempo,ac);
+		
+		ac = new AudioConnection(this, mixer, audioPort, info, 0);
+		mixer = new SoundMixer(ac);
 
 		if (!ac.connect()) {
 			close();
 			return;
 		}
 
-		waitFor(Command.AUDIO_OK);
-
-		// Start recording and playing in Mixer
-		// Start reception and sending in AudioConnection
-		mixer.start();
-		ac.start();
-		
+		waitFor(Command.AUDIO_OK);	
 	}
 
+	public void start(){
+		// Start recording and playing in Mixer
+		// Start reception and sending in AudioConnection
+
+		mixer.start(info.tempo);
+		ac.start(info.tempo);
+	}
+	
 	public void send(Message msg) {
 		out.println(MessageBuilder.build(msg));
 		out.flush();
