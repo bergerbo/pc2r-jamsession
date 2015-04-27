@@ -7,6 +7,7 @@ import java.io.PrintWriter;
 import java.net.Socket;
 import java.net.UnknownHostException;
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 
@@ -30,16 +31,18 @@ public class Client {
 	private int audioPort;
 	private String user;
 	private SessionInfo info;
-	
+	private Logger logger;
+
 	private int tick;
 
 	public Client(int port, String user) {
 		this.port = port;
 		this.user = user;
 		info = new SessionInfo();
+		logger = new Logger();
 		inQueue = new ArrayBlockingQueue<>(10);
 	}
-	
+
 	public SessionInfo getInfo() {
 		return info;
 	}
@@ -119,12 +122,11 @@ public class Client {
 
 	public void setupAudioConnection() throws InterruptedException {
 		Message msg;
-		
+
 		// Get audio port
 		msg = waitFor(Command.AUDIO_PORT);
 		audioPort = Integer.parseInt(msg.getArgs().get(0));
 
-		
 		ac = new AudioConnection(this, mixer, audioPort, info, 0);
 		mixer = new SoundMixer(ac);
 
@@ -133,17 +135,17 @@ public class Client {
 			return;
 		}
 
-		waitFor(Command.AUDIO_OK);	
+		waitFor(Command.AUDIO_OK);
 	}
 
-	public void start(){
+	public void start() {
 		// Start recording and playing in Mixer
 		// Start reception and sending in AudioConnection
 
 		mixer.start(info.tempo);
 		ac.start(info.tempo);
 	}
-	
+
 	public void send(Message msg) {
 		out.println(MessageBuilder.build(msg));
 		out.flush();
@@ -205,7 +207,6 @@ public class Client {
 
 		@Override
 		public void run() {
-
 			try {
 				while (running) {
 					String resp;
@@ -213,11 +214,12 @@ public class Client {
 					synchronized (inQueue) {
 
 						try {
-							inQueue.put(MessageBuilder.parse(resp));
+							Message msg = MessageBuilder.parse(resp); 
+							inQueue.put(msg);
+							inQueue.notifyAll();
 						} catch (UnkownCommandException e) {
 							e.printStackTrace();
 						}
-						inQueue.notifyAll();
 					}
 				}
 			} catch (IOException e) {
@@ -238,15 +240,23 @@ public class Client {
 			while (running) {
 				try {
 					msg = waitFor(Command.CONNECTED, Command.EXITED);
-					synchronized (info) {
-						if (msg.getCmd().equals(Command.CONNECTED))
-							info.nb_mus++;
-						else
-							info.nb_mus--;
-						
-						info.notifyAll();
+					synchronized (logger) {
+						synchronized (info) {
+							if (msg.getCmd().equals(Command.CONNECTED)) {
+								logger.log(new Log("Connected : "
+										+ msg.getArgs().get(0)));
+								info.nb_mus++;
+							} else {
+								logger.log(new Log("Exited : "
+										+ msg.getArgs().get(0)));
+								info.nb_mus--;
+							}
+
+							info.notifyAll();
+						}
+						logger.notifyAll();
 					}
-					
+
 				} catch (InterruptedException e) {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
@@ -255,6 +265,10 @@ public class Client {
 
 		}
 
+	}
+
+	public Logger getLogger() {
+		return logger;
 	}
 
 }

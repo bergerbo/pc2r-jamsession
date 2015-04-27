@@ -126,7 +126,7 @@ public class SoundMixer {
 		public void run() {
 			int offset = 0;
 			while (running) {
-				int count = in.read(buffer, offset, timeSize/100);
+				int count = in.read(buffer, offset, timeSize);
 				if (count > 0) {
 					
 					playbackQueue.offer(Arrays.copyOfRange(buffer, offset, offset+count));

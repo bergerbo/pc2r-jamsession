@@ -34,7 +34,7 @@ public class SessionDisplay extends JPanel {
 		updateUI();
 	}
 	
-	public class Updater implements Runnable {
+	private class Updater implements Runnable {
 
 		@Override
 		public void run() {
@@ -48,10 +48,8 @@ public class SessionDisplay extends JPanel {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
-			}
-			
-		}
-		
+			}	
+		}	
 	}
 	
 }

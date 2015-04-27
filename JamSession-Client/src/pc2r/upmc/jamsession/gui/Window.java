@@ -28,6 +28,7 @@ public class Window extends JPanel {
 		this.frame = frame;
 		JPanel topButtons = new JPanel();
 		SessionDisplay si = new SessionDisplay(client.getInfo());
+		LogDisplay ld = new LogDisplay(client.getLogger());
 		// Connect Button
 		button = new JButton("Connect");
 		button.addActionListener(new ActionListener() {
@@ -81,6 +82,7 @@ public class Window extends JPanel {
 
 		this.add(topButtons);
 		this.add(si);
+		this.add(ld);
 	}
 
 	public void reset() {

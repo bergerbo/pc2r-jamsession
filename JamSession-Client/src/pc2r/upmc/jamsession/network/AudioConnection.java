@@ -57,7 +57,7 @@ public class AudioConnection {
 		running = true;
 		reception = new Thread(new MixReceiver(bufferSize));
 		sending = new Thread(new ChunkSender(bufferSize));
-		//reception.start();
+		reception.start();
 		sending.start();
 	}
 
@@ -129,6 +129,8 @@ public class AudioConnection {
 					msg = MessageBuilder.parse(new String(buf));
 					if (msg.getCmd() == Command.AUDIO_MIX) {
 						mixer.pushIncomming(msg.getArgs().get(0).getBytes());
+						msg = new Message(Command.AUDIO_ACK);
+						client.send(msg);
 					}
 				}
 			} catch (IOException e) {
