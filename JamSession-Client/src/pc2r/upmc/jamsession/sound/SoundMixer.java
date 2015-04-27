@@ -29,7 +29,7 @@ public class SoundMixer {
 	private boolean running;
 
 	public SoundMixer(AudioConnection ac) {
-
+		this.ac = ac;
 		float sampleRate = 44100;
 		int sampleSizeInBits = 32;
 		int channels = 1;
@@ -52,10 +52,6 @@ public class SoundMixer {
 		}
 	}
 
-	public void setAudioConnection(AudioConnection ac) {
-		this.ac = ac;
-	}
-
 	public void pushIncomming(byte[] buf) {
 		try {
 			incomingMix.put(buf);
@@ -73,7 +69,9 @@ public class SoundMixer {
 			audioRecorder = new Thread(new AudioRecorder(tempo));
 			audioPlayer = new Thread(new AudioPlayer());
 			in.open(format);
+			in.start();
 			out.open(format);
+			out.start();
 			audioRecorder.start();
 			audioPlayer.start();
 		} catch (LineUnavailableException e) {
